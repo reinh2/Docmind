@@ -1,0 +1,11 @@
+# Local configuration and operating-system files
+.env
+.DS_Store
+
+# JavaScript build output and dependencies
+node_modules/
+web/**/node_modules/
+web/admin/dist/
+
+# Test and coverage artifacts
+coverage/

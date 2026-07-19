@@ -1,0 +1,7 @@
+.git
+.DS_Store
+.env
+node_modules
+web/**/node_modules
+coverage
+README.md
