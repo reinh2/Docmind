@@ -23,7 +23,7 @@ Requirements: Docker Desktop with Docker Compose. Nothing else is needed for the
 ```bash
 git clone <your-repository-url> docmind
 cd docmind
-docker compose up --build
+make up
 ```
 
 Then open [http://localhost:18080](http://localhost:18080). The demo admin token is `demo-admin-token`.
@@ -51,8 +51,10 @@ docker compose down
 To remove the demo data as well:
 
 ```bash
-docker compose down -v
+make clean
 ```
+
+`make help` lists the available Docker shortcuts. The most useful ones are `make logs`, `make health`, `make seed`, `make telegram`, and `make down`.
 
 ## Architecture
 
