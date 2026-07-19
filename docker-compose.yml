@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_DB: docmind
+      POSTGRES_USER: docmind
+      POSTGRES_PASSWORD: docmind
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docmind -d docmind"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  api:
+    build: .
+    environment:
+      DOCMIND_HTTP_ADDR: ${DOCMIND_HTTP_ADDR:-:8080}
+      DOCMIND_DATABASE_URL: postgres://docmind:docmind@postgres:5432/docmind?sslmode=disable
+      DOCMIND_ADMIN_TOKEN: ${DOCMIND_ADMIN_TOKEN:-demo-admin-token}
+      DOCMIND_AI_MODE: ${DOCMIND_AI_MODE:-fake}
+      DOCMIND_QUEUE_CAPACITY: ${DOCMIND_QUEUE_CAPACITY:-32}
+      DOCMIND_CHUNK_SIZE: ${DOCMIND_CHUNK_SIZE:-900}
+      DOCMIND_CHUNK_OVERLAP: ${DOCMIND_CHUNK_OVERLAP:-160}
+      DOCMIND_RETRIEVAL_THRESHOLD: ${DOCMIND_RETRIEVAL_THRESHOLD:-0.01}
+      DOCMIND_CORS_ORIGINS: ${DOCMIND_CORS_ORIGINS:-*}
+      DOCMIND_RATE_LIMIT_PER_MINUTE: ${DOCMIND_RATE_LIMIT_PER_MINUTE:-60}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_CHAT_MODEL: ${OPENROUTER_CHAT_MODEL:-}
+      OPENROUTER_EMBEDDING_MODEL: ${OPENROUTER_EMBEDDING_MODEL:-}
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile
+    ports:
+      - "${DOCMIND_HOST_PORT:-18080}:8080"
+    depends_on:
+      api:
+        condition: service_started
+  seed:
+    build: .
+    entrypoint: ["/usr/local/bin/docmind-seed"]
+    environment:
+      DOCMIND_DATABASE_URL: postgres://docmind:docmind@postgres:5432/docmind?sslmode=disable
+      DOCMIND_AI_MODE: fake
+      DOCMIND_QUEUE_CAPACITY: ${DOCMIND_QUEUE_CAPACITY:-32}
+      DOCMIND_CHUNK_SIZE: ${DOCMIND_CHUNK_SIZE:-900}
+      DOCMIND_CHUNK_OVERLAP: ${DOCMIND_CHUNK_OVERLAP:-160}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  telegram:
+    build: .
+    entrypoint: ["/usr/local/bin/docmind-telegram"]
+    profiles: ["telegram"]
+    environment:
+      DOCMIND_DATABASE_URL: postgres://docmind:docmind@postgres:5432/docmind?sslmode=disable
+      DOCMIND_AI_MODE: ${DOCMIND_AI_MODE:-fake}
+      DOCMIND_RETRIEVAL_THRESHOLD: ${DOCMIND_RETRIEVAL_THRESHOLD:-0.01}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_CHAT_MODEL: ${OPENROUTER_CHAT_MODEL:-}
+      OPENROUTER_EMBEDDING_MODEL: ${OPENROUTER_EMBEDDING_MODEL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres_data:

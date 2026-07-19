@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/admin/package-lock.json
+      - run: go test ./...
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: npm ci && npm run build
+        working-directory: web/admin
+      - run: docker compose build
+      - run: docker compose up -d
+      - name: Compose smoke test
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:18080/api/readyz; then break; fi
+            sleep 2
+          done
+          curl --fail --silent http://localhost:18080/api/readyz
+          curl --fail --silent http://localhost:18080/docmind-widget.js | grep 'DocMindWidget'
+      - if: always()
+        run: docker compose logs --no-color
+      - if: always()
+        run: docker compose down -v
