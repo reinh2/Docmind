@@ -17,7 +17,7 @@ help: ## Show available commands
 build: ## Build Docker images
 	$(COMPOSE) build
 
-up: ## Build and start the standard local demo in the background
+up: demo-site ## Build and start the standard local demo, plus the customer-facing widget demo site
 	$(COMPOSE) up --build -d
 	@echo "Admin console: http://localhost:18080 (token: demo-admin-token)"
 
@@ -26,7 +26,7 @@ down: demo-site-stop ## Stop containers (and the demo site server) while preserv
 
 restart: down up ## Restart the standard local demo
 
-demo: up demo-site open ## One-shot: start the stack, serve the widget demo site, open both in a browser
+demo: up open ## One-shot: start the stack (with the widget demo site) and open both in a browser
 
 demo-site: ## Serve the standalone widget demo page (examples/demo-site.html) in the background
 	@$(MAKE) demo-site-stop --no-print-directory
