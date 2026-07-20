@@ -2,6 +2,8 @@
 
 This document is the delivery plan for the portfolio version of DocMind. Each phase ends in a runnable, demonstrable increment; later phases extend the same interfaces rather than replacing the core.
 
+> **Status:** all four phases below are implemented and covered by CI. The document is kept as a record of how the system was built up in demonstrable increments.
+
 ## Product boundary
 
 DocMind answers only from customer-owned knowledge-base documents. It supports a web widget and Telegram as input channels, records the retrieval evidence used for every answer, and hands conversations to a human when evidence is insufficient or requested. The initial demo is a fictional Berlin legal firm, but no domain wording is embedded in core business rules.
@@ -38,7 +40,7 @@ Provider and notification integrations are ports: `internal/ai` and `internal/no
 
 ## Delivery phases
 
-### Phase 1 — RAG core (current)
+### Phase 1 — RAG core ✓
 
 **Goal:** a complete local demonstration of document ingestion, hybrid retrieval, and source-grounded answers.
 
@@ -56,7 +58,7 @@ Provider and notification integrations are ports: `internal/ai` and `internal/no
 
 **Manual acceptance:** upload `services.md`, poll the job until completed, then send “How much does an initial consultation cost?” and receive an answer with the Pricing source.
 
-### Phase 2 — resilience and secure ingestion
+### Phase 2 — resilience and secure ingestion ✓
 
 - PDF extraction and URL ingestion with SSRF allow-listing, timeouts, content-type checks and size caps.
 - Database-backed recovery of queued jobs on restart; exponential retry and dead-letter policy.
@@ -66,7 +68,7 @@ Provider and notification integrations are ports: `internal/ai` and `internal/no
 - Prompt-injection-resistant context envelope; regression tests ensure document instructions cannot alter system constraints.
 - Prometheus metrics for retrieval/generation latency, queue depth, provider failures, not-found ratio and tokens.
 
-### Phase 3 — user channels and handoff
+### Phase 3 — user channels and handoff ✓
 
 - Single-script vanilla JS/CSS widget with SSE token streaming, source disclosure, feedback and “talk to a person”.
 - Conversation-aware query rewriting and a bounded history policy.
@@ -74,7 +76,7 @@ Provider and notification integrations are ports: `internal/ai` and `internal/no
 - Notification port with structured log implementation plus Slack/Telegram adapters.
 - Escalation rule: explicit human request, button click, or insufficient evidence.
 
-### Phase 4 — admin experience and portfolio finish
+### Phase 4 — admin experience and portfolio finish ✓
 
 - React/Vite admin console: documents, ingestion status, reindex/delete, searchable conversations, source context, feedback and dashboard.
 - Dashboard: daily questions, not-found and escalation ratios, average latency, answer ratings and top questions.

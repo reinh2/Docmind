@@ -1,8 +1,14 @@
 # DocMind
 
+[![CI](https://github.com/reinh2/docmind/actions/workflows/ci.yml/badge.svg)](https://github.com/reinh2/docmind/actions/workflows/ci.yml)
+[![Go 1.22](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **DocMind** is a portfolio-grade, source-grounded RAG assistant for a company knowledge base. It accepts internal documents, indexes them in PostgreSQL with pgvector, answers customer questions through an embeddable web widget or Telegram, and retains the evidence behind every response for review in an admin console.
 
 The demo is preloaded with fictional documents from a Berlin law firm, but the ingestion, retrieval, and chat layers are domain-neutral.
+
+> **Why this exists:** most RAG demos stop at "embed some text and call an LLM." DocMind is built to show the parts that actually matter in production — an evidence gate that refuses to guess, a full audit trail behind every answer, SSRF-hardened ingestion, prompt-injection defenses, token streaming, and operational plumbing (health checks, metrics, rate limiting, migrations, CI).
 
 ## What it demonstrates
 
@@ -16,12 +22,22 @@ The demo is preloaded with fictional documents from a Berlin law firm, but the i
 - Optional Telegram long polling using the same conversation and retrieval pipeline.
 - Docker Compose, PostgreSQL migrations, nginx edge routing, health checks, Prometheus-style metrics, and CI.
 
+## Screenshots
+
+| Overview dashboard | Knowledge management |
+|---|---|
+| [![Admin overview](docs/admin-overview.png)](docs/admin-overview.png) | [![Knowledge management](docs/admin-knowledge.png)](docs/admin-knowledge.png) |
+
+| Conversation & evidence inspector | Embeddable customer widget |
+|---|---|
+| [![Conversations](docs/admin-conversations.png)](docs/admin-conversations.png) | [![Widget](docs/widget.png)](docs/widget.png) |
+
 ## Demo in three commands
 
 Requirements: Docker Desktop with Docker Compose. Nothing else is needed for the standard demo.
 
 ```bash
-git clone <your-repository-url> docmind
+git clone https://github.com/reinh2/docmind.git
 cd docmind
 make up
 ```
@@ -40,7 +56,7 @@ curl -N http://localhost:18080/api/v1/chat/messages \
   -d '{"session_id":"demo-browser","question":"How much does an initial consultation cost?"}'
 ```
 
-The chat endpoint returns Server-Sent Events in this order: `sources`, `token`, and `complete`. In demo mode, the response should state that an initial consultation costs **EUR 190 plus VAT** and provide the source chunks used.
+The chat endpoint streams Server-Sent Events: one `sources` event with the evidence, then a series of `token` events as the answer is generated, and a final `complete` event (a `token`-less `error` event is emitted instead if generation fails mid-stream). In demo mode, the response should state that an initial consultation costs **EUR 190 plus VAT** and provide the source chunks used.
 
 Stop the demo while keeping the database volume:
 
@@ -83,7 +99,7 @@ The public nginx gateway serves the admin app at `/`, the widget at `/docmind-wi
 3. Chunks are published as a new immutable document version in one database transaction. Only active versions participate in retrieval, so a reindex does not expose a partially indexed document.
 4. For a customer question, the service first persists the user message, then optionally rewrites the search query, runs vector and full-text searches, and fuses their ranked results with RRF.
 5. The highest fused score must pass `DOCMIND_RETRIEVAL_THRESHOLD`. Otherwise the assistant receives no context and responds that the knowledge base does not contain the answer.
-6. The provider produces an answer from the selected chunks. The assistant message and exact source snapshot are saved; the HTTP API returns sources before the answer through SSE.
+6. The provider produces an answer from the selected chunks and streams it token by token. The HTTP API forwards the evidence first, then relays each token as it arrives; the assistant message and exact source snapshot are persisted once generation finishes.
 
 ```mermaid
 sequenceDiagram
@@ -98,8 +114,9 @@ sequenceDiagram
   U->>C: Ask question
   C->>DB: Save question, vector search, full-text search
   C->>C: Fuse ranks and apply evidence gate
+  C-->>U: SSE: sources, then streamed tokens
   C->>DB: Save answer and source snapshot
-  C-->>U: SSE: sources, token, complete
+  C-->>U: SSE: complete
 ```
 
 ## Features
@@ -124,6 +141,7 @@ sequenceDiagram
 - RRF combines rank positions rather than incomparable raw search scores.
 - Up to five evidence chunks are passed to the answer provider.
 - The production prompt treats source blocks as untrusted reference data and instructs the model to ignore instructions inside them.
+- Answers stream token by token: OpenRouter is consumed as an SSE stream and relayed to the client, and the offline fake provider emits word-sized deltas so the streaming contract is exercised without credentials.
 - Every answer stores its source chunk IDs, ranks, scores, excerpts, and document metadata.
 
 ### Customer channels
@@ -139,6 +157,18 @@ sequenceDiagram
 - `/healthz` is a liveness probe; `/readyz` additionally verifies PostgreSQL connectivity.
 - `/metrics` exposes a small Prometheus-compatible registry for queue depth, provider errors, not-found answers, escalation count, and retrieval/generation latency.
 - The runtime container is non-root; migrations are protected with a PostgreSQL advisory lock.
+
+## Design decisions
+
+A few choices are deliberate and worth calling out, because they are where a real system diverges from a tutorial.
+
+- **An evidence gate, not a confidence score.** Retrieval must clear `DOCMIND_RETRIEVAL_THRESHOLD` on the fused RRF score or the model is handed *no* context and told to say the answer is not in the knowledge base. Refusing to answer is treated as a feature, not a failure mode — it is what keeps a support bot from inventing policy.
+- **Rank fusion over raw scores.** Vector cosine distances and `ts_rank` values are not on comparable scales, so blending them numerically is meaningless. RRF fuses *rank positions*, which is scale-free and robust when one retriever is confident and the other is noisy.
+- **Save-first conversation flow.** `Ask` persists the user's question before any rewrite, retrieval, or generation, and routes provider failures to a dead-letter record. A question is never lost because a downstream model call failed.
+- **Immutable document versions.** A reindex publishes a brand-new active version in a single transaction; only active versions are retrievable. A half-indexed document can never leak into an answer, and rollback is just flipping which version is active.
+- **Sources as untrusted data.** Retrieved chunks are wrapped in explicit `SOURCE` delimiters and the system prompt instructs the model to treat everything inside as reference data, never instructions — a concrete defense against prompt injection smuggled into an ingested document. The same posture drives the SSRF checks on URL ingestion.
+- **A provider port with a deterministic fake.** All model behavior sits behind one `ai.Provider` interface. The offline `FakeProvider` makes the entire system — ingestion, retrieval, streaming, audit — runnable and testable with zero credentials and zero network, which is what makes the three-command demo possible.
+- **Stream from the edge.** The answer is relayed to the browser token by token over SSE, with the evidence sent up front so the UI can disclose *what* it is reading before it says anything.
 
 ## Admin console
 
@@ -312,10 +342,9 @@ This is a strong portfolio demonstrator, not an unattended production SaaS. The 
 - Move rate limiting and session coordination to shared infrastructure for multiple API instances.
 - Add a real escalation destination (Slack, email, CRM, or ticketing); the included notifier logs events structurally.
 - Persist Telegram update offsets and the handoff lookup so `/human` works seamlessly after a bot restart.
-- Stream tokens from the upstream model; current SSE sends the sources and one complete answer token event after generation.
-- Add broader HTTP, database, widget/browser, security, and load-test coverage; the existing tests focus on core chunking, parsing, RRF, retry behavior, rate limiting, and the fake-provider flow.
-- Replace the sample organization, screenshots, repository URL, and OpenRouter metadata before publishing your own portfolio version.
+- Add broader database and load-test coverage; the current suite covers chunking, parsing, RRF, retry and streaming behavior, rate limiting, HTTP auth/validation/CORS, and the fake-provider flow end to end.
+- Replace the sample organization and OpenRouter metadata before publishing your own portfolio version.
 
 ## License
 
-No license file is currently included. Add an explicit license before distributing or accepting external contributions.
+Released under the [MIT License](LICENSE).
