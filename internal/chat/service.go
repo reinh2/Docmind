@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/example/docmind/internal/ai"
-	"github.com/example/docmind/internal/domain"
-	"github.com/example/docmind/internal/metrics"
-	"github.com/example/docmind/internal/notify"
-	"github.com/example/docmind/internal/retrieval"
-	"github.com/example/docmind/internal/store/postgres"
+	"github.com/reinh2/docmind/internal/ai"
+	"github.com/reinh2/docmind/internal/domain"
+	"github.com/reinh2/docmind/internal/metrics"
+	"github.com/reinh2/docmind/internal/notify"
+	"github.com/reinh2/docmind/internal/retrieval"
+	"github.com/reinh2/docmind/internal/store/postgres"
 )
 
 type Service struct {
@@ -26,6 +26,14 @@ type Result struct {
 	NotFound                            bool
 	Sources                             []domain.Source
 	RetrievalLatency, GenerationLatency time.Duration
+}
+
+// Stream carries optional progressive callbacks for Ask. OnSources fires once, after
+// retrieval and before generation, so a client can disclose evidence before the answer.
+// OnToken fires for each answer fragment. A nil Stream (or nil field) disables that step.
+type Stream struct {
+	OnSources func([]domain.Source)
+	OnToken   func(string)
 }
 
 func New(store *postgres.Store, provider ai.Provider, threshold float64, registry *metrics.Registry, notifier notify.Notifier, newID func() string) *Service {
@@ -50,7 +58,9 @@ func (s *Service) Escalate(ctx context.Context, conversationID, reason string) e
 }
 
 // Ask is save-first: the question is durable before rewrite, retrieval, or generation.
-func (s *Service) Ask(ctx context.Context, session, channel, question string) (Result, error) {
+// When stream is non-nil, sources and answer fragments are pushed through its callbacks
+// as they become available; the assembled answer is still persisted and returned.
+func (s *Service) Ask(ctx context.Context, session, channel, question string, stream *Stream) (Result, error) {
 	conv, err := s.store.GetOrCreateConversation(ctx, s.newID(), session, channel)
 	if err != nil {
 		return Result{}, err
@@ -93,8 +103,25 @@ func (s *Service) Ask(ctx context.Context, session, channel, question string) (R
 		chunks = nil
 		s.metrics.Inc("docmind_not_found_total")
 	}
+	sources := make([]domain.Source, 0, len(chunks))
+	for _, c := range chunks {
+		excerpt := c.Content
+		if len(excerpt) > 280 {
+			excerpt = excerpt[:280] + "…"
+		}
+		sources = append(sources, domain.Source{ChunkID: c.ID, Document: c.Document, Section: c.Section, Excerpt: excerpt, Score: c.Score})
+	}
+	var onToken func(string)
+	if stream != nil {
+		if stream.OnSources != nil {
+			stream.OnSources(sources)
+		}
+		onToken = stream.OnToken
+	}
 	generationStart := time.Now()
-	answer, err := s.ai.Answer(ctx, question, chunks)
+	// The evidence gate already emptied chunks on a not-found, so streaming a not-found
+	// still yields the provider's fallback text token by token.
+	answer, err := s.ai.Answer(ctx, question, chunks, onToken)
 	if err != nil {
 		return fail("generation", err)
 	}
@@ -103,14 +130,6 @@ func (s *Service) Ask(ctx context.Context, session, channel, question string) (R
 	messageID := s.newID()
 	if err = s.store.AddMessage(ctx, domain.Message{ID: messageID, ConversationID: conv.ID, Role: "assistant", Content: answer, NotFound: notFound}, int(retrievalLatency.Milliseconds()+generationLatency.Milliseconds())); err != nil {
 		return Result{}, err
-	}
-	sources := make([]domain.Source, 0, len(chunks))
-	for _, c := range chunks {
-		excerpt := c.Content
-		if len(excerpt) > 280 {
-			excerpt = excerpt[:280] + "…"
-		}
-		sources = append(sources, domain.Source{ChunkID: c.ID, Document: c.Document, Section: c.Section, Excerpt: excerpt, Score: c.Score})
 	}
 	if err = s.store.AddSources(ctx, messageID, sources); err != nil {
 		return Result{}, err

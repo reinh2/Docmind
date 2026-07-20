@@ -7,17 +7,22 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/example/docmind/internal/domain"
+	"github.com/reinh2/docmind/internal/domain"
 )
 
 const EmbeddingDimensions = 64
 
-// Provider is the port used by retrieval and chat services. OpenRouter will implement
-// this port in Phase 2; FakeProvider keeps the full demo deterministic and offline.
+// Provider is the port used by retrieval and chat services. FakeProvider keeps the
+// full demo deterministic and offline; OpenRouter implements the same port for
+// production model calls.
+//
+// Answer streams: when onDelta is non-nil the provider invokes it with incremental
+// answer fragments as they are produced, and still returns the complete answer.
+// A nil onDelta requests a non-streaming completion.
 type Provider interface {
 	Embed(ctx context.Context, text string) ([]float64, error)
 	RewriteQuery(ctx context.Context, history []domain.Message, question string) (string, error)
-	Answer(ctx context.Context, question string, context []domain.Chunk) (string, error)
+	Answer(ctx context.Context, question string, context []domain.Chunk, onDelta func(string)) (string, error)
 }
 
 type FakeProvider struct{}
@@ -55,13 +60,22 @@ func (FakeProvider) RewriteQuery(_ context.Context, history []domain.Message, qu
 	return strings.TrimSpace(question), nil
 }
 
-func (FakeProvider) Answer(_ context.Context, question string, context []domain.Chunk) (string, error) {
+func (FakeProvider) Answer(_ context.Context, question string, context []domain.Chunk, onDelta func(string)) (string, error) {
+	var answer string
 	if len(context) == 0 {
-		return "I could not find this in the knowledge base. Would you like me to connect you with a human?", nil
+		answer = "I could not find this in the knowledge base. Would you like me to connect you with a human?"
+	} else {
+		text := strings.TrimSpace(context[0].Content)
+		if len(text) > 480 {
+			text = text[:480] + "…"
+		}
+		answer = "Based on the available knowledge-base material: " + text
 	}
-	text := strings.TrimSpace(context[0].Content)
-	if len(text) > 480 {
-		text = text[:480] + "…"
+	if onDelta != nil {
+		// Emit word-sized deltas so the streaming contract is exercised offline too.
+		for _, word := range strings.SplitAfter(answer, " ") {
+			onDelta(word)
+		}
 	}
-	return "Based on the available knowledge-base material: " + text, nil
+	return answer, nil
 }

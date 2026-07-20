@@ -13,12 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/docmind/internal/chat"
-	"github.com/example/docmind/internal/ingestion"
-	"github.com/example/docmind/internal/metrics"
-	"github.com/example/docmind/internal/platform/id"
-	"github.com/example/docmind/internal/platform/ratelimit"
-	"github.com/example/docmind/internal/store/postgres"
+	"github.com/reinh2/docmind/internal/chat"
+	"github.com/reinh2/docmind/internal/domain"
+	"github.com/reinh2/docmind/internal/ingestion"
+	"github.com/reinh2/docmind/internal/metrics"
+	"github.com/reinh2/docmind/internal/platform/id"
+	"github.com/reinh2/docmind/internal/platform/ratelimit"
+	"github.com/reinh2/docmind/internal/store/postgres"
 )
 
 const maxUpload = 5 << 20
@@ -282,22 +283,36 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 	if req.Channel == "" {
 		req.Channel = "widget"
 	}
-	result, err := s.chat.Ask(r.Context(), req.SessionID, req.Channel, req.Question)
-	if err != nil {
-		s.log.Error("chat failed", "error", err)
-		writeError(w, http.StatusServiceUnavailable, "I couldn't process that right now. Please try again or contact a human.")
-		return
-	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("X-Accel-Buffering", "no")
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "streaming unavailable")
 		return
 	}
-	writeEvent(w, "sources", result.Sources)
-	writeEvent(w, "token", map[string]string{"text": result.Answer})
+	// Once the first event is flushed the status line is already 200, so a later
+	// generation error can only end the stream with an "error" event, not change the code.
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	stream := &chat.Stream{
+		OnSources: func(sources []domain.Source) {
+			writeEvent(w, "sources", sources)
+			flusher.Flush()
+		},
+		OnToken: func(text string) {
+			if text == "" {
+				return
+			}
+			writeEvent(w, "token", map[string]string{"text": text})
+			flusher.Flush()
+		},
+	}
+	result, err := s.chat.Ask(r.Context(), req.SessionID, req.Channel, req.Question, stream)
+	if err != nil {
+		s.log.Error("chat failed", "error", err)
+		writeEvent(w, "error", map[string]string{"message": "I couldn't process that right now. Please try again or contact a human."})
+		flusher.Flush()
+		return
+	}
 	writeEvent(w, "complete", map[string]any{"conversation_id": result.ConversationID, "message_id": result.MessageID, "not_found": result.NotFound})
 	flusher.Flush()
 }

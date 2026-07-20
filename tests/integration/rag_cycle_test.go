@@ -9,14 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/docmind/internal/ai"
-	"github.com/example/docmind/internal/chat"
-	"github.com/example/docmind/internal/ingestion"
-	"github.com/example/docmind/internal/metrics"
-	"github.com/example/docmind/internal/notify"
-	"github.com/example/docmind/internal/platform/id"
-	"github.com/example/docmind/internal/platform/migrate"
-	"github.com/example/docmind/internal/store/postgres"
+	"github.com/reinh2/docmind/internal/ai"
+	"github.com/reinh2/docmind/internal/chat"
+	"github.com/reinh2/docmind/internal/domain"
+	"github.com/reinh2/docmind/internal/ingestion"
+	"github.com/reinh2/docmind/internal/metrics"
+	"github.com/reinh2/docmind/internal/notify"
+	"github.com/reinh2/docmind/internal/platform/id"
+	"github.com/reinh2/docmind/internal/platform/migrate"
+	"github.com/reinh2/docmind/internal/store/postgres"
 )
 
 func TestUploadQuestionAnswerWithSource(t *testing.T) {
@@ -57,12 +58,27 @@ func TestUploadQuestionAnswerWithSource(t *testing.T) {
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
-	result, err := chat.New(store, provider, 0.01, metrics.New(), notify.LogNotifier{}, id.New).Ask(ctx, "integration-"+id.New(), "widget", "How much is the initial consultation?")
+	var sourcesFirst bool
+	var streamed strings.Builder
+	stream := &chat.Stream{
+		OnSources: func([]domain.Source) {
+			// Sources must be published before any token is streamed.
+			sourcesFirst = streamed.Len() == 0
+		},
+		OnToken: func(delta string) { streamed.WriteString(delta) },
+	}
+	result, err := chat.New(store, provider, 0.01, metrics.New(), notify.LogNotifier{}, id.New).Ask(ctx, "integration-"+id.New(), "widget", "How much is the initial consultation?", stream)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.NotFound || len(result.Sources) == 0 || !strings.Contains(result.Sources[0].Document, "Integration prices") {
 		t.Fatalf("expected grounded answer, got %+v", result)
+	}
+	if !sourcesFirst {
+		t.Fatal("expected sources to stream before the first answer token")
+	}
+	if streamed.String() != result.Answer {
+		t.Fatalf("streamed answer %q != persisted answer %q", streamed.String(), result.Answer)
 	}
 }
 
