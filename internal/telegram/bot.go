@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/docmind/internal/chat"
+	"github.com/reinh2/docmind/internal/chat"
 )
 
 // Bot uses the same chat use case as the widget, preserving one audit trail.
@@ -89,7 +89,7 @@ func (b *Bot) handle(ctx context.Context, chatID int64, text string) {
 		_ = b.send(ctx, chatID, "Your request has been sent to our team.")
 		return
 	}
-	result, err := b.chat.Ask(ctx, session, "telegram", text)
+	result, err := b.chat.Ask(ctx, session, "telegram", text, nil)
 	if err != nil {
 		b.log.Error("Telegram chat failed", "error", err)
 		_ = b.send(ctx, chatID, "I’m sorry, I can’t answer right now. Please try again shortly.")

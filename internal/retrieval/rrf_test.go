@@ -1,7 +1,7 @@
 package retrieval
 
 import (
-	"github.com/example/docmind/internal/domain"
+	"github.com/reinh2/docmind/internal/domain"
 	"testing"
 )
 

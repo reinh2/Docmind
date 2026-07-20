@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/example/docmind/internal/ai"
-	"github.com/example/docmind/internal/domain"
-	"github.com/example/docmind/internal/store/postgres"
+	"github.com/reinh2/docmind/internal/ai"
+	"github.com/reinh2/docmind/internal/domain"
+	"github.com/reinh2/docmind/internal/store/postgres"
 )
 
 type Service struct {

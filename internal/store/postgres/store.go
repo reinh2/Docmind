@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/example/docmind/internal/domain"
+	"github.com/reinh2/docmind/internal/domain"
 )
 
 type Store struct{ pool *pgxpool.Pool }

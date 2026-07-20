@@ -3,7 +3,7 @@ package retrieval
 import (
 	"sort"
 
-	"github.com/example/docmind/internal/domain"
+	"github.com/reinh2/docmind/internal/domain"
 )
 
 const rrfK = 60.0

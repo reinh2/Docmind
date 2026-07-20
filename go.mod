@@ -1,4 +1,4 @@
-module github.com/example/docmind
+module github.com/reinh2/docmind
 
 go 1.22
 

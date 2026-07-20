@@ -10,17 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/example/docmind/internal/ai"
-	"github.com/example/docmind/internal/chat"
-	"github.com/example/docmind/internal/config"
-	"github.com/example/docmind/internal/httpapi"
-	"github.com/example/docmind/internal/ingestion"
-	"github.com/example/docmind/internal/metrics"
-	"github.com/example/docmind/internal/notify"
-	"github.com/example/docmind/internal/platform/id"
-	"github.com/example/docmind/internal/platform/migrate"
-	"github.com/example/docmind/internal/platform/ratelimit"
-	"github.com/example/docmind/internal/store/postgres"
+	"github.com/reinh2/docmind/internal/ai"
+	"github.com/reinh2/docmind/internal/chat"
+	"github.com/reinh2/docmind/internal/config"
+	"github.com/reinh2/docmind/internal/httpapi"
+	"github.com/reinh2/docmind/internal/ingestion"
+	"github.com/reinh2/docmind/internal/metrics"
+	"github.com/reinh2/docmind/internal/notify"
+	"github.com/reinh2/docmind/internal/platform/id"
+	"github.com/reinh2/docmind/internal/platform/migrate"
+	"github.com/reinh2/docmind/internal/platform/ratelimit"
+	"github.com/reinh2/docmind/internal/store/postgres"
 )
 
 func main() {
