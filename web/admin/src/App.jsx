@@ -28,11 +28,13 @@ function Workspace({ token, onSignOut }) {
           <p>DOCMIND</p>
           <strong>Admin workspace</strong>
         </div>
-        {TABS.map(([id, label]) => (
-          <button className={tab === id ? 'active' : ''} key={id} onClick={() => setTab(id)}>
-            {label}
-          </button>
-        ))}
+        <nav aria-label="Workspace">
+          {TABS.map(([id, label]) => (
+            <button className={tab === id ? 'active' : ''} key={id} onClick={() => setTab(id)}>
+              {label}
+            </button>
+          ))}
+        </nav>
         <button className="logout" onClick={onSignOut}>Sign out</button>
       </aside>
       <section className="content">

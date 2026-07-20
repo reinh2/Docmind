@@ -8,6 +8,19 @@ import (
 
 const rrfK = 60.0
 
+// FilterByMinScore keeps only vector candidates that clear a real cosine-similarity
+// threshold. RRF scores encode rank, not relevance, so they must never be used as
+// the evidence gate by themselves.
+func FilterByMinScore(chunks []domain.Chunk, minScore float64) []domain.Chunk {
+	filtered := make([]domain.Chunk, 0, len(chunks))
+	for _, chunk := range chunks {
+		if chunk.Score >= minScore {
+			filtered = append(filtered, chunk)
+		}
+	}
+	return filtered
+}
+
 // Fuse merges independently-ranked lists. RRF deliberately uses rank instead of raw
 // vector/tsquery scores, which are not naturally comparable.
 func Fuse(vector, text []domain.Chunk, limit int) []domain.Chunk {

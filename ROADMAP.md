@@ -51,7 +51,7 @@ Provider and notification integrations are ports: `internal/ai` and `internal/no
 - Bounded asynchronous ingestion queue returning `202 Accepted` and a job ID.
 - Deterministic 64-dimensional embedding and chat adapters for zero-key demo mode.
 - PostgreSQL vector similarity and full-text searches fused using Reciprocal Rank Fusion (RRF).
-- Relevance threshold and explicit “not found” response; answers include persisted, clickable source metadata.
+- Raw vector-similarity evidence gate plus exact full-text evidence and an explicit “not found” response; RRF orders the surviving sources without being mistaken for a relevance score.
 - Save-first question persistence, health/readiness endpoints, graceful shutdown.
 - Unit tests for chunking, RRF, query rewriting, and fake-AI end-to-end behavior.
 - Docker Compose with PostgreSQL/pgvector and a non-root API container; seed command and sample legal-firm documents.

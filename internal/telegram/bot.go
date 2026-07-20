@@ -131,9 +131,9 @@ func (b *Bot) call(ctx context.Context, method string, payload any, out any) err
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("Telegram API returned %s", resp.Status)
+		return fmt.Errorf("telegram API returned %s", resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }

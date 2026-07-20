@@ -15,10 +15,17 @@ import (
 var files embed.FS
 
 func Apply(ctx context.Context, pool *pgxpool.Pool) error {
-	if _, err := pool.Exec(ctx, `SELECT pg_advisory_lock(9463321)`); err != nil {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
 		return err
 	}
-	defer pool.Exec(context.Background(), `SELECT pg_advisory_unlock(9463321)`)
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock(9463321)`); err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock(9463321)`)
+	}()
 	entries, err := files.ReadDir("sql")
 	if err != nil {
 		return err
@@ -32,7 +39,7 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 			return fmt.Errorf("parse migration %s: %w", name, err)
 		}
 		var exists bool
-		err = pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version=$1)`, version).Scan(&exists)
+		err = conn.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version=$1)`, version).Scan(&exists)
 		// 001 creates schema_migrations, therefore it has to be tried once before this check.
 		if err != nil && version != 1 {
 			return err
@@ -44,7 +51,7 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 		if err != nil {
 			return err
 		}
-		tx, err := pool.Begin(ctx)
+		tx, err := conn.Begin(ctx)
 		if err != nil {
 			return err
 		}
@@ -52,7 +59,7 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 			_, err = tx.Exec(ctx, `INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT DO NOTHING`, version)
 		}
 		if err != nil {
-			tx.Rollback(ctx)
+			_ = tx.Rollback(ctx)
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
 		if err = tx.Commit(ctx); err != nil {

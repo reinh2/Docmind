@@ -166,7 +166,7 @@ func (s *Store) PublishVersion(ctx context.Context, documentID, versionID string
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	if _, err = tx.Exec(ctx, `INSERT INTO document_versions(id,document_id,status) VALUES($1,$2,'staging')`, versionID, documentID); err != nil {
 		return err
 	}

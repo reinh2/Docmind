@@ -1,8 +1,9 @@
 package retrieval
 
 import (
-	"github.com/reinh2/docmind/internal/domain"
 	"testing"
+
+	"github.com/reinh2/docmind/internal/domain"
 )
 
 func TestFuseRewardsAgreement(t *testing.T) {
@@ -14,5 +15,13 @@ func TestFuseRewardsAgreement(t *testing.T) {
 	}
 	if out[0].Score <= out[1].Score {
 		t.Fatal("RRF scores were not merged")
+	}
+}
+
+func TestFilterByMinScoreKeepsOnlyRelevantVectorResults(t *testing.T) {
+	items := []domain.Chunk{{ID: "relevant", Score: 0.31}, {ID: "noise", Score: 0.09}}
+	filtered := FilterByMinScore(items, 0.1)
+	if len(filtered) != 1 || filtered[0].ID != "relevant" {
+		t.Fatalf("filtered results = %#v, want only the relevant chunk", filtered)
 	}
 }

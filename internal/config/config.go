@@ -31,7 +31,7 @@ func Load() (Config, error) {
 		QueueCapacity:            envInt("DOCMIND_QUEUE_CAPACITY", 32),
 		ChunkSize:                envInt("DOCMIND_CHUNK_SIZE", 900),
 		ChunkOverlap:             envInt("DOCMIND_CHUNK_OVERLAP", 160),
-		RetrievalThreshold:       envFloat("DOCMIND_RETRIEVAL_THRESHOLD", 0.01),
+		RetrievalThreshold:       envFloat("DOCMIND_RETRIEVAL_THRESHOLD", 0.10),
 		AdminToken:               env("DOCMIND_ADMIN_TOKEN", "change-me-before-production"),
 		OpenRouterAPIKey:         env("OPENROUTER_API_KEY", ""),
 		OpenRouterChatModel:      env("OPENROUTER_CHAT_MODEL", ""),
@@ -42,6 +42,9 @@ func Load() (Config, error) {
 	}
 	if c.ChunkSize < 100 || c.ChunkOverlap < 0 || c.ChunkOverlap >= c.ChunkSize {
 		return Config{}, fmt.Errorf("invalid chunk settings")
+	}
+	if c.RetrievalThreshold > 1 {
+		return Config{}, fmt.Errorf("DOCMIND_RETRIEVAL_THRESHOLD must be between 0 and 1")
 	}
 	return c, nil
 }

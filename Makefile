@@ -1,10 +1,11 @@
 SHELL := /bin/sh
 
 COMPOSE ?= docker compose
+GO_PACKAGES := ./cmd/... ./internal/...
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build up down restart ps logs health seed telegram db-shell clean test
+.PHONY: help build up down restart ps logs health seed telegram db-shell clean test test-integration lint
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z_-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -43,8 +44,16 @@ clean: ## Stop containers and permanently remove local PostgreSQL data
 	$(COMPOSE) down -v
 
 test: ## Run Go checks and build the admin interface locally
-	GOCACHE=/tmp/docmind-go-build go test ./...
-	GOCACHE=/tmp/docmind-go-build go vet ./...
-	GOCACHE=/tmp/docmind-go-build go test -race ./...
+	GOCACHE=/tmp/docmind-go-build go test $(GO_PACKAGES)
+	GOCACHE=/tmp/docmind-go-build go vet $(GO_PACKAGES)
+	GOCACHE=/tmp/docmind-go-build go test -race $(GO_PACKAGES)
 	npm --prefix web/admin ci
+	npm --prefix web/admin run lint
+	npm --prefix web/admin run test
 	npm --prefix web/admin run build
+
+test-integration: ## Run PostgreSQL integration tests (requires DOCMIND_TEST_DATABASE_URL)
+	DOCMIND_TEST_DATABASE_URL="$(DOCMIND_TEST_DATABASE_URL)" GOCACHE=/tmp/docmind-go-build go test -tags=integration ./tests/integration
+
+lint: ## Run the Go linter
+	GOCACHE=/tmp/docmind-go-build GOLANGCI_LINT_CACHE=/tmp/docmind-golangci-cache golangci-lint run $(GO_PACKAGES)

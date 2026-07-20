@@ -4,6 +4,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -19,6 +20,54 @@ import (
 	"github.com/reinh2/docmind/internal/platform/migrate"
 	"github.com/reinh2/docmind/internal/store/postgres"
 )
+
+func TestUnrelatedQuestionDoesNotReceiveEvidence(t *testing.T) {
+	url := os.Getenv("DOCMIND_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("set DOCMIND_TEST_DATABASE_URL to run PostgreSQL integration tests")
+	}
+	ctx := context.Background()
+	store, err := postgres.Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := migrate.Apply(ctx, store.Pool()); err != nil {
+		t.Fatal(err)
+	}
+
+	provider := ai.FakeProvider{}
+	const similarityThreshold = 0.10
+	question := ""
+	// The deterministic demo embedder is intentionally lightweight, so select a unique
+	// nonsense query whose nearest stored vector is below the configured evidence gate.
+	for attempt := 0; attempt < 64; attempt++ {
+		candidate := fmt.Sprintf("zebracorn-helipad-%s-%d", id.New(), attempt)
+		embedding, embedErr := provider.Embed(ctx, candidate)
+		if embedErr != nil {
+			t.Fatal(embedErr)
+		}
+		matches, searchErr := store.VectorSearch(ctx, embedding, 1)
+		if searchErr != nil {
+			t.Fatal(searchErr)
+		}
+		if len(matches) == 0 || matches[0].Score < similarityThreshold {
+			question = candidate
+			break
+		}
+	}
+	if question == "" {
+		t.Fatal("could not construct an unrelated query below the evidence threshold")
+	}
+
+	result, err := chat.New(store, provider, similarityThreshold, metrics.New(), notify.LogNotifier{}, id.New).Ask(ctx, "not-found-"+id.New(), "widget", question, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.NotFound || len(result.Sources) != 0 {
+		t.Fatalf("unrelated question must be rejected, got %+v", result)
+	}
+}
 
 func TestUploadQuestionAnswerWithSource(t *testing.T) {
 	url := os.Getenv("DOCMIND_TEST_DATABASE_URL")
@@ -67,7 +116,7 @@ func TestUploadQuestionAnswerWithSource(t *testing.T) {
 		},
 		OnToken: func(delta string) { streamed.WriteString(delta) },
 	}
-	result, err := chat.New(store, provider, 0.01, metrics.New(), notify.LogNotifier{}, id.New).Ask(ctx, "integration-"+id.New(), "widget", "How much is the initial consultation?", stream)
+	result, err := chat.New(store, provider, 0.10, metrics.New(), notify.LogNotifier{}, id.New).Ask(ctx, "integration-"+id.New(), "widget", "How much is the initial consultation?", stream)
 	if err != nil {
 		t.Fatal(err)
 	}

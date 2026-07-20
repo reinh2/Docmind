@@ -91,6 +91,10 @@ func (s *Service) Ask(ctx context.Context, session, channel, question string, st
 	if err != nil {
 		return Result{}, err
 	}
+	// VectorSearch always returns nearest neighbours when documents exist. Remove weak
+	// neighbours before rank fusion: RRF ranks candidates but does not measure whether
+	// any candidate is relevant enough to ground an answer.
+	vector = retrieval.FilterByMinScore(vector, s.threshold)
 	text, err := s.store.TextSearch(ctx, query, 8)
 	if err != nil {
 		return Result{}, err
@@ -98,7 +102,7 @@ func (s *Service) Ask(ctx context.Context, session, channel, question string, st
 	chunks := retrieval.Fuse(vector, text, 5)
 	retrievalLatency := time.Since(retrievalStart)
 	s.metrics.Observe("docmind_retrieval_latency_seconds", retrievalLatency.Seconds())
-	notFound := len(chunks) == 0 || chunks[0].Score < s.threshold
+	notFound := len(chunks) == 0
 	if notFound {
 		chunks = nil
 		s.metrics.Inc("docmind_not_found_total")

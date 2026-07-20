@@ -130,7 +130,7 @@ func (o *OpenRouter) streamComplete(ctx context.Context, messages []chatMessage,
 	if err != nil {
 		return "", TemporaryError{Err: err}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		return "", classifyStatus(resp.StatusCode, resp.Status, data)
@@ -187,7 +187,7 @@ func (o *OpenRouter) post(ctx context.Context, path string, payload any, out any
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return err

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 export function Login({ onLogin }) {
-  const [token, setToken] = useState('demo-admin-token')
+	const [token, setToken] = useState('')
 
   function submit(event) {
     event.preventDefault()

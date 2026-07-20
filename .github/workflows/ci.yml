@@ -7,6 +7,20 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_DB: docmind
+          POSTGRES_USER: docmind
+          POSTGRES_PASSWORD: docmind
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U docmind -d docmind"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -17,10 +31,16 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: web/admin/package-lock.json
-      - run: go test ./...
-      - run: go vet ./...
-      - run: go test -race ./...
-      - run: npm ci && npm run build
+      - run: test -z "$(gofmt -l .)"
+      - run: go test ./cmd/... ./internal/...
+      - run: go vet ./cmd/... ./internal/...
+      - run: go test -race ./cmd/... ./internal/...
+      - run: DOCMIND_TEST_DATABASE_URL='postgres://docmind:docmind@localhost:5432/docmind?sslmode=disable' go test -tags=integration ./tests/integration
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.10.1
+          args: ./cmd/... ./internal/...
+      - run: npm ci && npm run lint && npm run test && npm run build
         working-directory: web/admin
       - run: docker compose build
       - run: docker compose up -d

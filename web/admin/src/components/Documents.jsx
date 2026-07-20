@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, formatDate } from '../api.js'
 
 export function Documents({ token }) {
@@ -6,13 +6,13 @@ export function Documents({ token }) {
   const [file, setFile] = useState(null)
   const [message, setMessage] = useState('')
 
-  function load() {
+  const load = useCallback(() => {
     api(token, '/v1/admin/documents')
       .then(data => setDocuments(data.documents || []))
       .catch(e => setMessage(e.message))
-  }
+  }, [token])
 
-  useEffect(load, [token])
+  useEffect(() => { void load() }, [load])
 
   async function upload(event) {
     event.preventDefault()

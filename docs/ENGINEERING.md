@@ -99,8 +99,8 @@ The public nginx gateway serves the admin app at `/`, the widget at `/docmind-wi
 1. An administrator uploads a file or submits a URL. The API checks the request size and authentication; URL ingestion also rejects loopback, private, link-local, multicast, and unspecified network addresses.
 2. The source is stored in an ingestion job and queued. A worker extracts text, removes HTML scripts/styles, splits the text into sentence-aware overlapping chunks, and creates an embedding for each chunk.
 3. Chunks are published as a new immutable document version in one database transaction. Only active versions participate in retrieval, so a reindex does not expose a partially indexed document.
-4. For a customer question, the service first persists the user message, then optionally rewrites the search query, runs vector and full-text searches, and fuses their ranked results with RRF.
-5. The highest fused score must pass `DOCMIND_RETRIEVAL_THRESHOLD`. Otherwise the assistant receives no context and responds that the knowledge base does not contain the answer.
+4. For a customer question, the service first persists the user message, then optionally rewrites the search query and runs vector and full-text searches. Vector candidates below `DOCMIND_RETRIEVAL_THRESHOLD` cosine similarity are discarded before ranking; exact full-text matches remain independent evidence.
+5. The remaining candidates are fused with RRF. If neither semantic nor full-text evidence remains after filtering, the assistant receives no context and responds that the knowledge base does not contain the answer.
 6. The provider produces an answer from the selected chunks and streams it token by token. The HTTP API forwards the evidence first, then relays each token as it arrives; the assistant message and exact source snapshot are persisted once generation finishes.
 
 ```mermaid
@@ -164,7 +164,7 @@ sequenceDiagram
 
 A few choices are deliberate and worth calling out, because they are where a real system diverges from a tutorial.
 
-- **An evidence gate, not a confidence score.** Retrieval must clear `DOCMIND_RETRIEVAL_THRESHOLD` on the fused RRF score or the model is handed *no* context and told to say the answer is not in the knowledge base. Refusing to answer is treated as a feature, not a failure mode — it is what keeps a support bot from inventing policy.
+- **An evidence gate, not a confidence score.** A vector candidate must clear `DOCMIND_RETRIEVAL_THRESHOLD` on raw cosine similarity before RRF; an exact full-text match is also evidence. When neither exists, the model is handed *no* context and told to say the answer is not in the knowledge base. RRF orders evidence only: its positional score is not a relevance measure.
 - **Rank fusion over raw scores.** Vector cosine distances and `ts_rank` values are not on comparable scales, so blending them numerically is meaningless. RRF fuses *rank positions*, which is scale-free and robust when one retriever is confident and the other is noisy.
 - **Save-first conversation flow.** `Ask` persists the user's question before any rewrite, retrieval, or generation, and routes provider failures to a dead-letter record. A question is never lost because a downstream model call failed.
 - **Immutable document versions.** A reindex publishes a brand-new active version in a single transaction; only active versions are retrievable. A half-indexed document can never leak into an answer, and rollback is just flipping which version is active.
@@ -275,7 +275,7 @@ cp .env.example .env
 | `DOCMIND_QUEUE_CAPACITY` | `32` | Buffered in-process ingestion queue capacity |
 | `DOCMIND_CHUNK_SIZE` | `900` | Target chunk size in characters; minimum 100 |
 | `DOCMIND_CHUNK_OVERLAP` | `160` | Sentence-level overlap; must be smaller than chunk size |
-| `DOCMIND_RETRIEVAL_THRESHOLD` | `0.01` | Minimum fused RRF score to answer from evidence |
+| `DOCMIND_RETRIEVAL_THRESHOLD` | `0.10` | Minimum cosine similarity for vector evidence; tune for the embedding provider and corpus |
 | `DOCMIND_CORS_ORIGINS` | `*` | Comma-separated origins or `*` |
 | `DOCMIND_RATE_LIMIT_PER_MINUTE` | `60` | Per-IP and per-session fixed-window limit |
 | `DOCMIND_HOST_PORT` | `18080` | nginx host port in Compose |
@@ -305,8 +305,11 @@ Requirements for non-Docker development: Go 1.22+, Node.js 22+, npm, PostgreSQL 
 GOCACHE=/tmp/docmind-go-build go test ./...
 GOCACHE=/tmp/docmind-go-build go vet ./...
 GOCACHE=/tmp/docmind-go-build go test -race ./...
+GOCACHE=/tmp/docmind-go-build GOLANGCI_LINT_CACHE=/tmp/docmind-golangci-cache golangci-lint run ./...
 
 npm --prefix web/admin ci
+npm --prefix web/admin run lint
+npm --prefix web/admin run test
 npm --prefix web/admin run build
 ```
 

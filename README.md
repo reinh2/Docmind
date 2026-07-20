@@ -1,5 +1,6 @@
 # DocMind
 
+[![CI](https://github.com/reinh2/docmind/actions/workflows/ci.yml/badge.svg)](https://github.com/reinh2/docmind/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **DocMind is an AI assistant that answers customer questions using only a company's own documents — and always shows exactly where each answer came from.**
@@ -35,7 +36,7 @@ Imagine a small law firm's assistant is asked "How much does an initial consulta
 
 ## About this project
 
-DocMind is a demonstration project. The knowledge base in the demo is a set of fictional documents from a made-up Berlin law firm, but the underlying system works the same way for any company's documents. It was built to show what a trustworthy, production-minded AI assistant looks like — not just a chatbot demo, but a considered answer to "can we actually trust this?" It's shared publicly as a portfolio piece.
+DocMind is a demonstration project. The knowledge base in the demo is a set of fictional documents from a made-up Berlin law firm, but the underlying system works the same way for any company's documents. It was built to show what a trustworthy, production-minded AI assistant looks like — not just a chatbot demo, but a considered answer to "can we actually trust this?" The repository is prepared as a portfolio piece.
 
 If you're an engineer evaluating the code, the architecture, or want to run it yourself, the **[Engineering Guide](docs/ENGINEERING.md)** has everything: setup instructions, architecture diagrams, the API reference, and configuration options.
 

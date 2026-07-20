@@ -103,7 +103,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "file is required")
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	body, err := io.ReadAll(file)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "cannot read file")
