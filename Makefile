@@ -2,10 +2,14 @@ SHELL := /bin/sh
 
 COMPOSE ?= docker compose
 GO_PACKAGES := ./cmd/... ./internal/...
+DEMO_SITE_PORT ?= 8899
+DEMO_SITE_DIR := examples
+DEMO_SITE_PID := /tmp/docmind-demo-site.pid
+OPEN_CMD := $(shell command -v open || command -v xdg-open || echo true)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build up down restart ps logs health seed telegram db-shell clean test test-integration lint
+.PHONY: help build up down restart ps logs health seed telegram db-shell clean test test-integration lint demo demo-site demo-site-stop open
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z_-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -15,11 +19,27 @@ build: ## Build Docker images
 
 up: ## Build and start the standard local demo in the background
 	$(COMPOSE) up --build -d
+	@echo "Admin console: http://localhost:18080 (token: demo-admin-token)"
 
-down: ## Stop containers while preserving the PostgreSQL volume
+down: demo-site-stop ## Stop containers (and the demo site server) while preserving the PostgreSQL volume
 	$(COMPOSE) down
 
 restart: down up ## Restart the standard local demo
+
+demo: up demo-site open ## One-shot: start the stack, serve the widget demo site, open both in a browser
+
+demo-site: ## Serve the standalone widget demo page (examples/demo-site.html) in the background
+	@$(MAKE) demo-site-stop --no-print-directory
+	@(cd $(DEMO_SITE_DIR) && nohup python3 -m http.server $(DEMO_SITE_PORT) >/tmp/docmind-demo-site.log 2>&1 & echo $$! > $(DEMO_SITE_PID))
+	@sleep 1
+	@echo "Demo site: http://localhost:$(DEMO_SITE_PORT)/demo-site.html"
+
+demo-site-stop: ## Stop the demo site static server
+	@[ -f $(DEMO_SITE_PID) ] && kill $$(cat $(DEMO_SITE_PID)) 2>/dev/null; rm -f $(DEMO_SITE_PID)
+
+open: ## Open the admin console and demo site in your default browser
+	@$(OPEN_CMD) http://localhost:18080 >/dev/null 2>&1 || true
+	@$(OPEN_CMD) http://localhost:$(DEMO_SITE_PORT)/demo-site.html >/dev/null 2>&1 || true
 
 ps: ## Show Compose service status
 	$(COMPOSE) ps

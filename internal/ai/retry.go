@@ -29,16 +29,12 @@ func (r *RetryProvider) RewriteQuery(ctx context.Context, h []domain.Message, q 
 }
 func (r *RetryProvider) Answer(ctx context.Context, q string, c []domain.Chunk, onDelta func(string)) (string, error) {
 	var out string
-	// Deltas are suppressed until the final attempt so a retried stream does not emit
-	// a partial answer twice; earlier attempts stream to a no-op and only their error
-	// drives the retry decision.
+	// Streams from every attempt, including retries: a transient failure only ever
+	// happens before the provider has emitted any deltas, so there is no risk of a
+	// partial answer being followed by a second, conflicting one.
 	err := r.retry(ctx, func(final bool) error {
-		emit := onDelta
-		if !final {
-			emit = nil
-		}
 		var e error
-		out, e = r.next.Answer(ctx, q, c, emit)
+		out, e = r.next.Answer(ctx, q, c, onDelta)
 		return e
 	})
 	return out, err

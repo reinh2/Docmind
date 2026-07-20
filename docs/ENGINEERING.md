@@ -74,6 +74,8 @@ make clean
 
 `make help` lists the available Docker shortcuts. The most useful ones are `make logs`, `make health`, `make seed`, `make telegram`, and `make down`.
 
+To see the assistant from a customer's point of view, run `make demo` instead of `make up`: it starts the stack, serves a standalone page with the widget embedded (`examples/demo-site.html`) on port `8899`, and opens both that page and the admin console in your browser.
+
 ## Architecture
 
 ```mermaid
