@@ -7,6 +7,12 @@
 
 🇷🇺 [Читать на русском](README.ru.md) · 🛠️ [Technical documentation for engineers](docs/ENGINEERING.md)
 
+## Video overview
+
+[![DocMind video overview: answers from documents with their sources](https://reinh2.github.io/assets/motion/docmind-en-poster.webp)](https://reinh2.github.io/assets/motion/docmind-en.mp4)
+
+▶ **[Watch the 28-second overview](https://reinh2.github.io/assets/motion/docmind-en.mp4)** (with sound) · [Russian version](https://reinh2.github.io/assets/motion/docmind-ru.mp4) · [Portfolio](https://reinh2.github.io/en/#docmind)
+
 ## The problem
 
 Most companies already have the real answers written down somewhere — price lists, FAQs, policies, handbooks. Customers still end up emailing, calling, or waiting in a chat queue to get something that was already sitting in a document. Off-the-shelf chatbots try to "solve" this by guessing at an answer when they're not sure — and a chatbot that confidently invents a wrong price or a wrong policy is often worse than no chatbot at all.
